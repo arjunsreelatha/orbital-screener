@@ -1,0 +1,7 @@
+venv/
+cpp/build/
+__pycache__/
+*.pyc
+*.exe
+*.o
+*.a
