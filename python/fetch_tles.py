@@ -2,7 +2,7 @@ from pathlib import Path
 import time
 import requests
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 OUTPUT_PATH = PROJECT_ROOT / "data" / "tles" / "starlink.tle"
 CACHE_HOURS = 24
 URL = "https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle"
