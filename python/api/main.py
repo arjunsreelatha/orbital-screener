@@ -113,3 +113,71 @@ def get_conjunction(conjunction_id: str):
         if c["id"] == conjunction_id:
             return c
     raise HTTPException(status_code=404, detail="Conjunction not found")
+
+
+@app.get("/positions")
+def get_positions():
+    import json
+    conj_path = PROJECT_ROOT / "data" / "conjunctions" / "conjunctions.json"
+    with open(conj_path) as f:
+        raw = json.load(f)
+    
+    # collect unique satellites with positions
+    seen = set()
+    satellites = []
+    for event in raw[:5000]:  # limit to first 5000 for speed
+        for name_key, pos_key in [("object1_name", "pos1_teme"), ("object2_name", "pos2_teme")]:
+            name = event[name_key].strip()
+            pos  = event[pos_key]
+            if name not in seen:
+                seen.add(name)
+                x, y, z = pos
+                r   = (x**2 + y**2 + z**2) ** 0.5
+                lat = __import__('math').degrees(__import__('math').asin(z / r))
+                lon = __import__('math').degrees(__import__('math').atan2(y, x))
+                alt = r - 6371.0
+                satellites.append({
+                    "name": name,
+                    "lon":  lon,
+                    "lat":  lat,
+                    "alt":  alt
+                })
+    return satellites
+
+@app.get("/conjunction_lines")
+def get_conjunction_lines():
+    import json
+    conj_path = PROJECT_ROOT / "data" / "conjunctions" / "conjunctions.json"
+    with open(conj_path) as f:
+        raw = json.load(f)
+    
+    import math
+    lines = []
+    for event in raw[:5000]:
+        dist = event["miss_distance_km"]
+        vel  = event["relative_velocity_km_s"]
+        
+        # only return HIGH risk pairs
+        if not (dist < 5.0 and vel > 3.0):
+            continue
+            
+        def teme_to_lla(pos):
+            x, y, z = pos
+            r   = math.sqrt(x**2 + y**2 + z**2)
+            lat = math.degrees(math.asin(z / r))
+            lon = math.degrees(math.atan2(y, x))
+            alt = r - 6371.0
+            return lon, lat, alt
+
+        lon1, lat1, alt1 = teme_to_lla(event["pos1_teme"])
+        lon2, lat2, alt2 = teme_to_lla(event["pos2_teme"])
+
+        lines.append({
+            "object1": event["object1_name"].strip(),
+            "object2": event["object2_name"].strip(),
+            "miss_distance_km": dist,
+            "pos1": {"lon": lon1, "lat": lat1, "alt": alt1},
+            "pos2": {"lon": lon2, "lat": lat2, "alt": alt2},
+        })
+
+    return lines
