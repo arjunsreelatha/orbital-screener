@@ -1,27 +1,55 @@
 import sys
-import torch
+import threading
 import pickle
+
+import torch
 import numpy as np
 import pandas as pd
+
 from pathlib import Path
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
+from datetime import datetime
 from contextlib import asynccontextmanager
 
+from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi.middleware.cors import CORSMiddleware
+
+
+# Add the python/ directory to Python's import path
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
+# Now these imports will work
+from run_pipeline import refresh_pipeline
 from model.dataset import FEATURE_COLS, LABEL_MAP, normalize_sequences
 from model.model import ConjunctionLSTM
 
+
+# Lock to prevent multiple refreshes
+refresh_lock = threading.Lock()
+
+# Refresh status
+refresh_status = {
+    "running": False,
+    "last_refresh": None,
+    "last_error": None
+}
+
+
+# Project paths
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-CSV_PATH     = PROJECT_ROOT / "data" / "conjunctions" / "dataset.csv"
-MODEL_PATH   = PROJECT_ROOT / "data" / "model.pt"
-SCALER_PATH  = PROJECT_ROOT / "data" / "scaler.pkl"
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+CSV_PATH = PROJECT_ROOT / "data" / "conjunctions" / "dataset.csv"
+MODEL_PATH = PROJECT_ROOT / "data" / "model.pt"
+SCALER_PATH = PROJECT_ROOT / "data" / "scaler.pkl"
 
-# global state
-model  = None
+
+# Device
+DEVICE = torch.device(
+    "cuda" if torch.cuda.is_available() else "cpu"
+)
+
+
+# Global state
+model = None
 scaler = None
 conjunctions = []
 
@@ -84,6 +112,36 @@ def run_inference():
     conjunctions = results
     print(f"Inference done. {len(conjunctions)} conjunction pairs.")
 
+from datetime import datetime
+
+def refresh_pipeline_and_reload():
+    if not refresh_lock.acquire(blocking=False):
+        print("Refresh already in progress.")
+        return False
+
+
+    try:
+        print("Starting refresh pipeline...")
+
+        refresh_pipeline()
+
+        print("Reloading inference...")
+        run_inference()
+
+        refresh_status["last_refresh"] = datetime.utcnow().isoformat()
+
+        print("Refresh complete.")
+        return True
+
+    except Exception as e:
+        refresh_status["last_error"] = str(e)
+        print(f"Refresh failed: {e}")
+        raise
+
+    finally:
+        refresh_status["running"] = False
+        refresh_lock.release()
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     load_model()
@@ -98,10 +156,20 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
+@app.get("/refresh/status")
+def get_refresh_status():
+    return refresh_status
 @app.get("/health")
 def health():
     return {"status": "ok", "device": str(DEVICE), "conjunctions_loaded": len(conjunctions)}
+@app.post("/refresh")
+def refresh(background_tasks: BackgroundTasks):
+    if refresh_lock.locked():
+        raise HTTPException(status_code=400, detail="Refresh already in progress")
+    refresh_status["running"] = True
+    refresh_status["last_error"] = None
+    background_tasks.add_task(refresh_pipeline_and_reload)
+    return {"status": "refresh started"}
 
 @app.get("/conjunctions")
 def get_conjunctions(limit: int = 100):

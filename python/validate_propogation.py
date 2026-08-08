@@ -39,3 +39,6 @@ if __name__ == "__main__":
         print(f"  vx = {v[0]:.6f}")
         print(f"  vy = {v[1]:.6f}")
         print(f"  vz = {v[2]:.6f}")
+
+if __name__ == "__main__":
+    propogate()        

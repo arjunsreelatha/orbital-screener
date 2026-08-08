@@ -19,7 +19,8 @@ FIELDS = [
     "risk_label",
 ]
 
-if __name__ == "__main__":
+
+def build_dataset():
     print("Loading featured records...")
     with open(INPUT_PATH) as f:
         records = json.load(f)
@@ -38,3 +39,6 @@ if __name__ == "__main__":
     labels = Counter(r["risk_label"] for r in records)
     print(f"Label distribution: {dict(labels)}")
     print(f"Total pairs: {len(set(tuple(sorted([r['object1_name'], r['object2_name']])) for r in records))}")
+
+if __name__ == "__main__":
+    build_dataset()    

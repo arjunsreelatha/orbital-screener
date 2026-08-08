@@ -32,7 +32,7 @@ def compute_features(records):
 
     return result
 
-if __name__ == "__main__":
+def feature_engineering():
     print("Loading CDM records...")
     with open(INPUT_PATH) as f:
         records = json.load(f)
@@ -55,3 +55,7 @@ if __name__ == "__main__":
         pair_counts[key] += 1
     top_pair = max(pair_counts, key=pair_counts.get)
     print(f"Most common pair: {top_pair[0]} vs {top_pair[1]} — {pair_counts[top_pair]} snapshots")
+
+if __name__ == "__main__":
+    feature_engineering()
+        

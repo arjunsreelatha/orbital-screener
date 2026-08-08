@@ -28,7 +28,7 @@ def estimate_pc(miss_distance_km, relative_velocity_km_s):
     else:
         return 0.05
 
-if __name__ == "__main__":
+def build_cdm():
     print("Processing...")
     labels = Counter()
     i = 0
@@ -62,3 +62,6 @@ if __name__ == "__main__":
 
     print(f"Total: {i}")
     print(f"Distribution: {dict(labels)}")
+
+if __name__ == "__main__":
+    build_cdm()
